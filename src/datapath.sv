@@ -1,3 +1,12 @@
+// Copyright 2023 University of Engineering and Technology Lahore.
+// Licensed under the Apache License, Version 2.0, see LICENSE file for details.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Description: The Store Buffer module. 
+//
+// Author: M.Faisal Shahkar & M.Nasir, UET Lahore
+// Date: 17.12.2024
+
 module store_buffer_fifo (
     input  logic clk,
     input  logic rst_n,
