@@ -1,3 +1,12 @@
+// Copyright 2023 University of Engineering and Technology Lahore.
+// Licensed under the Apache License, Version 2.0, see LICENSE file for details.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Description: The Store Buffer module. 
+//
+// Author: M.Faisal Shahkar & M.Nasir, UET Lahore
+// Date: 17.12.2024
+
 module stb_controller (
     input  logic clk,
     input  logic rst_n,
@@ -15,7 +24,7 @@ module stb_controller (
 
 );
 
-typedef struct packed {
+typedef enum logic [1:0] {
     IDLE  = 2'b00,
     WRITE = 2'b01,
     READ  = 2'b11
@@ -153,7 +162,13 @@ always_comb begin : output_logic
                 stb_stall        = 1'b0;
             end
         end
-        default: 
+        default: begin
+            stb_wr_en        = 1'b0;      
+            stb_r_en         = 1'b0;       
+            stb_initial_read = 1'b0;
+            stb_ack          = 1'b0;        
+            stb_stall        = 1'b0;
+        end
     endcase
 end
     
