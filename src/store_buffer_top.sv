@@ -97,12 +97,13 @@ datapath #(
                                     .stb_wr_en(stb_wr_en),
                                     .stb_r_en(stb_r_en),
                                     .stb_initial_read(stb_initial_read),
-                                    .stb_ack(stb_ack),
+                                    .stb2dbuslsu_ack(stb2dbuslsu_ack),
                                     .stb_stall(stb_stall));
 
 
+
 assign stb2dcache_empty  = stb_empty;  
-assign stb2dbuslsu_ack   = stb_ack;
+// assign stb2dbuslsu_ack   = stb_ack;
 assign stb2dbuslsu_stall = stb_stall; 
 
 // logic for read operation 
@@ -120,6 +121,8 @@ always_comb begin : read_logic
     else begin
         cache_write_ack = cache_write_ack;
     end
+
+    // stb2dbuslsu_ack   = stb_ack;
 end
 
 endmodule

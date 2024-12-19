@@ -58,7 +58,7 @@ module datapath #(
 
     // FIFO structure
     typedef struct packed {
-        logic [ADDR_WIDTH-1:0]        addr;
+        logic [ADDR_WIDTH-1:0]           addr;
         logic [DATA_WIDTH-1:0]           wdata;
         logic [BYTE_SEL_WIDTH-1:0]       sel_byte;
     } fifo_entry_t;
@@ -95,11 +95,11 @@ module datapath #(
     end
 
     // Entry count for FIFO
-    always_comb begin
+    always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             entry_count = 0;
         end
-        if (wr_en) begin
+        else if (wr_en) begin
             entry_count = entry_count + 1;
         end
         else if (r_en) begin
@@ -108,8 +108,8 @@ module datapath #(
         else begin
             entry_count = entry_count;
         end
-        stb_empty = (entry_count == 0);
-        stb_full = (entry_count == FIFO_DEPTH);
+        // stb_empty = (entry_count == 0);
+        // stb_full = (entry_count == FIFO_DEPTH);
     end
     
     always_comb begin
@@ -118,18 +118,18 @@ module datapath #(
             stb2dcache_wdata    = fifo_mem[rd_ptr].wdata;
             stb2dcache_sel_byte = fifo_mem[rd_ptr].sel_byte;
             stb2dcache_w_en     = 1'b1;
-            stb2dcache_req       = 1'b1;
+            stb2dcache_req      = 1'b1;
         end else begin
-            stb2dcache_addr     = 0;
-            stb2dcache_wdata    = 0;
-            stb2dcache_sel_byte = 0;
-            stb2dcache_w_en     = 1'b0;
+            stb2dcache_addr      = 0;
+            stb2dcache_wdata     = 0;
+            stb2dcache_sel_byte  = 0;
+            stb2dcache_w_en      = 1'b0;
             stb2dcache_req       = 1'b0;
         end
     end
 
      // Status signals
-    // assign stb_empty = (entry_count == 0);
-    // assign stb_full = (entry_count == FIFO_DEPTH);
+    assign stb_empty = (entry_count == 0);
+    assign stb_full = (entry_count == FIFO_DEPTH);
 
 endmodule
