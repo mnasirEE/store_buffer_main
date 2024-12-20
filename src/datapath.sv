@@ -40,6 +40,7 @@ module datapath #(
     input  logic  wr_en,               // Write enable 
     input  logic  rd_sel,
     input  logic  r_en,
+    input  logic  dcache2stb_ack,
 
 
     output logic stb_empty,              // FIFO empty signal
@@ -48,9 +49,8 @@ module datapath #(
     // Data outputs (to DCache)
     output logic [ADDR_WIDTH-1:0]     stb2dcache_addr,
     output logic [DATA_WIDTH-1:0]        stb2dcache_wdata,
-    output logic [BYTE_SEL_WIDTH-1:0]    stb2dcache_sel_byte,
-    output logic                         stb2dcache_w_en,
-    output logic                         stb2dcache_req     
+    output logic [BYTE_SEL_WIDTH-1:0]    stb2dcache_sel_byte
+       
 );
 
     // Parameters
@@ -65,7 +65,7 @@ module datapath #(
 
     fifo_entry_t fifo_mem[FIFO_DEPTH]; // FIFO memory
     logic [$clog2(FIFO_DEPTH)-1:0]       wr_ptr, rd_ptr; // Write and read pointers
-    logic [FIFO_DEPTH:0]                 entry_count;  // Count of entries in the FIFO
+    logic [$clog2(FIFO_DEPTH)-1:0]                 entry_count;  // Count of entries in the FIFO
 
 
     // Write logic
@@ -85,7 +85,7 @@ module datapath #(
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rd_ptr <= 0;
-        end else if (r_en && !stb_empty) begin
+        end else if (r_en) begin
             // stb2dcache_addr <= fifo_mem[rd_ptr].addr;
             // stb2dcache_wdata <= fifo_mem[rd_ptr].wdata;
             // stb2dcache_sel_byte <= fifo_mem[rd_ptr].sel_byte;
@@ -102,7 +102,7 @@ module datapath #(
         else if (wr_en) begin
             entry_count = entry_count + 1;
         end
-        else if (r_en) begin
+        else if (dcache2stb_ack) begin
             entry_count = entry_count - 1;
         end
         else begin
@@ -117,19 +117,37 @@ module datapath #(
             stb2dcache_addr     = fifo_mem[rd_ptr].addr;
             stb2dcache_wdata    = fifo_mem[rd_ptr].wdata;
             stb2dcache_sel_byte = fifo_mem[rd_ptr].sel_byte;
-            stb2dcache_w_en     = 1'b1;
-            stb2dcache_req      = 1'b1;
+            // stb2dcache_w_en     = 1'b1;
+            // stb2dcache_req      = 1'b1;
         end else begin
             stb2dcache_addr      = 0;
             stb2dcache_wdata     = 0;
             stb2dcache_sel_byte  = 0;
-            stb2dcache_w_en      = 1'b0;
-            stb2dcache_req       = 1'b0;
+            // stb2dcache_w_en      = 1'b0;
+            // stb2dcache_req       = 1'b0;
         end
     end
 
      // Status signals
-    assign stb_empty = (entry_count == 0);
-    assign stb_full = (entry_count == FIFO_DEPTH);
+    // assign stb_empty = (entry_count == 0);
+    // assign stb_full = (entry_count == FIFO_DEPTH);
+    always_ff @(posedge clk or negedge rst_n) begin : empty_full_logic
+        if (!rst_n) begin
+            stb_empty = 1;
+        end
+        if ((entry_count == 0)) begin
+            stb_empty = 1;
+        end
+        else if (entry_count != 0) begin
+            stb_empty = 0;
+        end
+        else begin
+            stb_empty = stb_empty;
+        end
+        // stb_full = (entry_count == FIFO_DEPTH);
+        
+    end
+
+    assign stb_full = (entry_count == 2'b11);
 
 endmodule

@@ -20,7 +20,14 @@ module stb_controller (
     output logic stb_r_en,           // controller  -> datapath    - read enable for stb read counter
     output logic stb_initial_read,   // controller  -> datapath    - initial read or initial write to cache when we are not waiting for cache ack
     output logic stb2dbuslsu_ack,            // controller  -> stb_top     - ack signal after writing data successfully in store buffer
-    output logic stb_stall           // controller  -> stb_top     - stall signal if buffer full
+    output logic stb_stall,           // controller  -> stb_top     - stall signal if buffer full
+    output logic stb_initial_done,
+    input  logic dcache2stb_ack,
+    output logic read_req_en
+    // output logic stb_req,
+    // output logic rd_sel,
+    // output logic stb_w_en,
+    // output logic dmem_sel
 
 );
 
@@ -59,13 +66,25 @@ always_comb begin : next_state_logic
             end
         end
         WRITE: begin
-            if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full ) begin
+            if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full && dcache2stb_ack ) begin
                 next_state = WRITE;
+            end
+            else if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full) begin
+                next_state = WRITE;
+            end
+            else if (dcache2stb_ack) begin
+                next_state = WRITE;
+            end
+            else if (cache_write_ack && !stb_empty && dcache2stb_ack) begin
+                next_state = READ;
             end
             else if (cache_write_ack && !stb_empty) begin
                 next_state = READ;
             end
             else if (cache_write_ack && !stb_empty && stb_full) begin
+                next_state = READ;
+            end
+            else if (!stb_empty && stb_full) begin
                 next_state = READ;
             end
             else if (!dmem_sel_i && !lsudbus2stb_w_en && !lsudbus2stb_req && !stb_full && stb_empty) begin
@@ -77,6 +96,12 @@ always_comb begin : next_state_logic
         end
         READ: begin
             if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full) begin
+                next_state = WRITE;
+            end
+            else if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full && dcache2stb_ack) begin
+                next_state = WRITE;
+            end
+            else if (dcache2stb_ack) begin
                 next_state = WRITE;
             end
             else begin
@@ -98,7 +123,13 @@ always_comb begin : output_logic
                 stb_r_en         = 1'b0;       
                 stb_initial_read = 1'b1;
                 stb2dbuslsu_ack          = 1'b0;        
-                stb_stall        = 1'b0;      
+                stb_stall        = 1'b0; 
+                stb_initial_done = 1'b0; 
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
             end
             else begin
                 stb_wr_en        = 1'b0;      
@@ -106,30 +137,103 @@ always_comb begin : output_logic
                 stb_initial_read = 1'b0;
                 stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
             end
         end 
         WRITE: begin
             stb2dbuslsu_ack =1'b1;
-            if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full ) begin
+            if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full && dcache2stb_ack ) begin
+                stb_wr_en        = 1'b1;      
+                stb_r_en         = 1'b1;       
+                stb_initial_read = 1'b0;
+                // stb2dbuslsu_ack          = 1'b0;        
+                stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
+            end
+            else if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full) begin
                 stb_wr_en        = 1'b1;      
                 stb_r_en         = 1'b0;       
                 stb_initial_read = 1'b0;
                 // stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
             end
-            else if (cache_write_ack && !stb_empty) begin
+            else if (dcache2stb_ack) begin
                 stb_wr_en        = 1'b0;      
                 stb_r_en         = 1'b1;       
                 stb_initial_read = 1'b0;
                 // stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
             end
-            else if (cache_write_ack && cache_write_ack && !stb_empty && stb_full) begin
+            else if (cache_write_ack && !stb_empty && dcache2stb_ack) begin
                 stb_wr_en        = 1'b0;      
                 stb_r_en         = 1'b1;       
                 stb_initial_read = 1'b0;
                 // stb2dbuslsu_ack          = 1'b0;        
+                stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 1;
+                // stb_req          = 0;
+                // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
+            end
+            else if (cache_write_ack && !stb_empty && !dcache2stb_ack) begin
+                stb_wr_en        = 1'b0;      
+                stb_r_en         = 1'b0;       
+                stb_initial_read = 1'b0;
+                // stb2dbuslsu_ack          = 1'b0;        
+                stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 1;
+                // stb_req          = 1;
+                // rd_sel           = 1;
+                // stb_w_en         = 1;
+                // dmem_sel         = 1; 
+            end
+            else if (cache_write_ack && !stb_empty && stb_full && !dcache2stb_ack) begin
+                stb_wr_en        = 1'b0;      
+                stb_r_en         = 1'b0;       
+                stb_initial_read = 1'b0;
+                // stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b1;
+                stb_initial_done = 1'b0;
+                read_req_en      = 1;
+                // stb_req          = 1;
+                // rd_sel           = 1;
+                // stb_w_en         = 1;
+                // dmem_sel         = 1; 
+                
+            end
+            else if (!stb_empty && stb_full) begin
+                stb_wr_en        = 1'b0;      
+                stb_r_en         = 1'b0;       
+                stb_initial_read = 1'b0;
+                // stb2dbuslsu_ack          = 1'b0;        
+                stb_stall        = 1'b1;
+                stb_initial_done = 1'b0;
+                read_req_en      = 1;
             end
             else if (!dmem_sel_i && !lsudbus2stb_w_en && !lsudbus2stb_req && !stb_full && stb_empty) begin
                 stb_wr_en        = 1'b0;      
@@ -137,6 +241,12 @@ always_comb begin : output_logic
                 stb_initial_read = 1'b0;
                 // stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
             end
             else begin
                 stb_wr_en        = 1'b0;      
@@ -144,22 +254,63 @@ always_comb begin : output_logic
                 stb_initial_read = 1'b0;
                 // stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b0;
+                stb_initial_done = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
             end
         end
         READ: begin
+            stb_initial_done = 1'b1;
             if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full) begin
                 stb_wr_en        = 1'b1;      
                 stb_r_en         = 1'b0;       
                 stb_initial_read = 1'b0;
-                // stb2dbuslsu_ack          = 1'b0;        
+                stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
+            end
+            else if (dmem_sel_i && lsudbus2stb_w_en && lsudbus2stb_req && !stb_full && dcache2stb_ack) begin
+                stb_wr_en        = 1'b1;      
+                stb_r_en         = 1'b1;       
+                stb_initial_read = 1'b0;
+                stb2dbuslsu_ack          = 1'b0;        
+                stb_stall        = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
+            end
+            else if (dcache2stb_ack) begin
+                stb_wr_en        = 1'b0;      
+                stb_r_en         = 1'b1;       
+                stb_initial_read = 1'b0;
+                stb2dbuslsu_ack          = 1'b0;        
+                stb_stall        = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 0;
+                // // rd_sel           = 0;
+                // stb_w_en         = 0;
+                // dmem_sel         = 0; 
             end
             else begin
                 stb_wr_en        = 1'b0;      
                 stb_r_en         = 1'b0;       
                 stb_initial_read = 1'b0;
-                // stb2dbuslsu_ack          = 1'b0;        
+                stb2dbuslsu_ack          = 1'b0;        
                 stb_stall        = 1'b0;
+                read_req_en      = 0;
+                // stb_req          = 1;
+                // // rd_sel           = 1;
+                // stb_w_en         = 1;
+                // dmem_sel         = 1; 
             end
         end
         default: begin
@@ -168,6 +319,13 @@ always_comb begin : output_logic
             stb_initial_read = 1'b0;
             stb2dbuslsu_ack          = 1'b0;        
             stb_stall        = 1'b0;
+            stb_initial_done = 1'b0;
+            read_req_en      = 0;
+            // stb_req          = 0;
+            // // rd_sel           = 0;
+            // stb_w_en         = 0;
+            // dmem_sel         = 0;
+            
         end
     endcase
 end

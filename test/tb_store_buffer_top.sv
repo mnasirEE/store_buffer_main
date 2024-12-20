@@ -130,51 +130,85 @@ module tb_store_buffer_top;
         // Test 1: Normal Write Operation
         $display("Test 1: Normal Write Operation");
         
-        write_to_buffer(32'h1000, 32'hAAAA_BBBB, 4'b1111);
-        // write_to_buffer(32'h1004, 32'hCCCC_DDDD, 4'b1111);
-        // write_to_buffer(32'h1008, 32'hBBBB_aaaa, 4'b1111);
-        // write_to_buffer(32'h100c, 32'hffff_DDDD, 4'b1111);
+        write_to_buffer(32'h0000, 32'hAAAA_BBBB, 4'b1111);
+        write_to_buffer(32'h0001, 32'hCCCC_DDDD, 4'b1111);
+        write_to_buffer(32'h0002, 32'hBBBB_aaaa, 4'b1111);
+        write_to_buffer(32'h0003, 32'hffff_DDDD, 4'b1111);
         //write_to_buffer(32'h2000, 32'hAAAA_BBBB, 4'b1111);
         //write_to_buffer(32'h1004, 32'hCCCC_DDDD, 4'b1111);
         @(posedge clk);
 
         // Test 3: Write to Cache (Cache ready, Buffer not empty)
         // $display("Test 3: Write to Cache");
-        // while (!stb2dcache_empty) begin
-        //     write_to_cache();
-        // end
+        while (!stb2dcache_empty) begin
+            $display("Read started1");
+            write_to_cache();
+            $display("Read End1");
+            $display("Read started2");
+            write_to_cache();
+            $display("Read End2");
+            $display("Read started3");
+            write_to_cache();
+            $display("Read End3");
+            $display("Read started4");
+            write_to_cache();
+            $display("Read End4");
+            @(posedge clk);
+            
+        end
         // @(posedge clk);
+        // write_to_buffer(32'h0002, 32'hBBBB_aaaa, 4'b1111);
+        // write_to_buffer(32'h0003, 32'hffff_DDDD, 4'b1111);
+        // @(posedge clk);
+        // while (!stb2dcache_empty) begin
+        //     $display("Read started3");
+        //     write_to_cache();
+        //     $display("Read End3");
+        //     $display("Read started4");
+        //     write_to_cache();
+        //     $display("Read End4");
+        //     @(posedge clk);
+            
+        // end
         
         // End the simulation
         $display("End of Simulation");
+        $stop;
         $finish;
     end
 
     // Task to write to store buffer
     task write_to_buffer(
-        input [ADDR_WIDTH-1:0] addr, 
-        input [DATA_WIDTH-1:0] data, 
-        input [BYTE_SEL_WIDTH-1:0] byte_sel
-    );
-        begin
-            lsudbus2stb_addr         = addr;
-            lsudbus2stb_wdata         = data;
-            lsudbus2stb_sel_byte     = byte_sel;
-            dmem_sel_i   = 1;
-            lsudbus2stb_w_en         = 1;
-            lsudbus2stb_req       = 1;  // actually valid signal
-            @(posedge clk);
-            while (!stb2dbuslsu_ack) begin // actually ready signal
-                @(posedge clk);
-                $display("action");
-            end
-            $display("action done");
-            lsudbus2stb_w_en = 0;
-            lsudbus2stb_req = 0;
-            @(posedge clk);
-            $display("reaction");
-        end
-    endtask
+    input [ADDR_WIDTH-1:0] addr, 
+    input [DATA_WIDTH-1:0] data, 
+    input [BYTE_SEL_WIDTH-1:0] byte_sel
+);
+    begin
+        // Initialize signals for write operation
+        lsudbus2stb_addr = addr;
+        lsudbus2stb_wdata = data;
+        lsudbus2stb_sel_byte = byte_sel;
+        dmem_sel_i = 1;
+        lsudbus2stb_w_en = 1;
+        lsudbus2stb_req = 1;  // Valid signal
+
+        // Wait for acknowledgment
+        @(posedge clk);
+        $display("Waiting for acknowledgment...");
+        wait (stb2dbuslsu_ack);  // Block execution until acknowledgment is received
+
+        $display("Acknowledgment received.");
+        // Deassert write enable and request signals
+        lsudbus2stb_w_en = 0;
+        lsudbus2stb_req = 0;
+
+        // Add an extra clock cycle to ensure proper deassertion
+        @(posedge clk);
+        $display("Write operation completed for address: %h", addr);
+    end
+endtask
+
+
 
     logic [31:0]dcache[0:31];
     task write_to_cache();
@@ -182,13 +216,16 @@ module tb_store_buffer_top;
         @(posedge clk);
         while (!stb2dcache_req)   
             @(posedge clk);
+            $display("not req");
         
         if (stb2dcache_w_en) begin
             dcache[stb2dcache_addr] = stb2dcache_wdata;
         end  
         dcache2stb_ack = 1;
-        repeat(2)@(posedge clk);
-        dcache2stb_ack = 0;   
+        // repeat(2)@(posedge clk);
+        @(posedge clk)
+        dcache2stb_ack = 0;  
+        // $display("Read End"); 
     endtask
 
 endmodule

@@ -62,6 +62,12 @@ logic stb_r_en;
 logic stb_stall;
 logic cache_write_ack;
 logic rd_sel;
+logic stb_initial_done;
+logic dcache_ack;
+logic stb_req;
+logic stb_w_en;
+logic dmem_sel;
+logic read_req_en;
 /* =========================================== Store Buffer Datapath ==================================== */
 assign rd_sel = 1'b1;
 datapath #(
@@ -77,13 +83,13 @@ datapath #(
                             .wr_en(stb_wr_en),
                             .r_en(stb_r_en),
                             .rd_sel(rd_sel),
+                            .dcache2stb_ack(dcache2stb_ack),
                             .stb_empty(stb_empty),
                             .stb_full(stb_full),
                             .stb2dcache_addr(stb2dcache_addr),
                             .stb2dcache_wdata(stb2dcache_wdata),
-                            .stb2dcache_sel_byte(stb2dcache_sel_byte),
-                            .stb2dcache_w_en(stb2dcache_w_en),
-                            .stb2dcache_req(stb2dcache_req));
+                            .stb2dcache_sel_byte(stb2dcache_sel_byte)
+                            );
 
 /* =========================================== Store Buffer Controller ==================================== */
     stb_controller stb_main_controller (.clk(clk),
@@ -98,17 +104,26 @@ datapath #(
                                     .stb_r_en(stb_r_en),
                                     .stb_initial_read(stb_initial_read),
                                     .stb2dbuslsu_ack(stb2dbuslsu_ack),
-                                    .stb_stall(stb_stall));
+                                    .stb_stall(stb_stall),
+                                    .stb_initial_done(stb_initial_done),
+                                    .dcache2stb_ack(dcache_ack),
+                                    .read_req_en(read_req_en)
+                                    // .stb_req(stb2dcache_req),
+                                    // .rd_sel(rd_sel),
+                                    // .stb_w_en(stb2dcache_w_en),
+                                    // .dmem_sel(dmem_sel_o)
+                                    );
 
 
 
 assign stb2dcache_empty  = stb_empty;  
 // assign stb2dbuslsu_ack   = stb_ack;
+assign dcache_ack = dcache2stb_ack;
 assign stb2dbuslsu_stall = stb_stall; 
 
 // logic for read operation 
 
-always_comb begin : read_logic
+always_ff @(posedge clk or negedge rst_n) begin : read_logic
     if(!rst_n) begin
         cache_write_ack = 0;
     end
@@ -118,11 +133,37 @@ always_comb begin : read_logic
     else if (dcache2stb_ack) begin
         cache_write_ack = 1;
     end
+    else if (stb_initial_done) begin
+        cache_write_ack = 0;
+    end
     else begin
         cache_write_ack = cache_write_ack;
     end
 
     // stb2dbuslsu_ack   = stb_ack;
+end
+
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        stb2dcache_req = 0;
+        stb2dcache_w_en = 0;
+        dmem_sel_o =0;
+    end
+    else if (read_req_en) begin
+        stb2dcache_req = 1;
+        stb2dcache_w_en = 1;
+        dmem_sel_o =1;
+    end
+    else if (dcache2stb_ack) begin
+        stb2dcache_req = 0;
+        stb2dcache_w_en = 0;
+        dmem_sel_o =0;
+    end
+    else begin
+        stb2dcache_req = stb2dcache_req;
+        stb2dcache_w_en = stb2dcache_w_en;
+        dmem_sel_o = dmem_sel_o;
+    end
 end
 
 endmodule
