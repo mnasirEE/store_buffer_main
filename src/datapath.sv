@@ -65,7 +65,7 @@ module datapath #(
 
     fifo_entry_t fifo_mem[FIFO_DEPTH]; // FIFO memory
     logic [$clog2(FIFO_DEPTH)-1:0]       wr_ptr, rd_ptr; // Write and read pointers
-    logic [$clog2(FIFO_DEPTH)-1:0]                 entry_count;  // Count of entries in the FIFO
+    logic [$clog2(FIFO_DEPTH):0]                 entry_count;  // Count of entries in the FIFO
 
 
     // Write logic
@@ -132,22 +132,25 @@ module datapath #(
     // assign stb_empty = (entry_count == 0);
     // assign stb_full = (entry_count == FIFO_DEPTH);
     always_ff @(posedge clk or negedge rst_n) begin : empty_full_logic
-        if (!rst_n) begin
-            stb_empty = 1;
+    if (!rst_n) begin
+        stb_empty <= 1;
+        stb_full  <= 0;
+    end else begin
+        // Update stb_empty and stb_full based on entry_count
+        if (entry_count == 0) begin
+            stb_empty <= 1;
+            stb_full  <= 0;
+        end else if (entry_count == FIFO_DEPTH+1) begin
+            stb_empty <= 0;
+            stb_full  <= 1;
+        end else begin
+            stb_empty <= 0;
+            stb_full  <= 0;
         end
-        if ((entry_count == 0)) begin
-            stb_empty = 1;
-        end
-        else if (entry_count != 0) begin
-            stb_empty = 0;
-        end
-        else begin
-            stb_empty = stb_empty;
-        end
-        // stb_full = (entry_count == FIFO_DEPTH);
-        
     end
+end
 
-    assign stb_full = (entry_count == 2'b11);
+
+    // assign stb_full = (entry_count == 2'b11);
 
 endmodule

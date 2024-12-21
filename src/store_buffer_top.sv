@@ -89,6 +89,7 @@ datapath #(
                             .stb2dcache_addr(stb2dcache_addr),
                             .stb2dcache_wdata(stb2dcache_wdata),
                             .stb2dcache_sel_byte(stb2dcache_sel_byte)
+                            
                             );
 
 /* =========================================== Store Buffer Controller ==================================== */
