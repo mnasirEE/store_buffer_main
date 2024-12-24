@@ -48,7 +48,7 @@ module tb_store_buffer_top;
     logic                       dmem_sel_o;           // Data memory select from Store Buffer
 
     logic [DATA_WIDTH-1:0]      dcache2stb_rdata;
-    logic [DATA_WIDTH-1:0]      stb2lsudbus_rdata;
+    logic [DATA_WIDTH-1:0]      stb2dbuslsu_rdata;
 
     // monitor and queue signals
     logic [DATA_WIDTH-1:0] m_mem [0:BLEN-1];
@@ -91,25 +91,28 @@ module tb_store_buffer_top;
         .dcache2stb_ack         (dcache2stb_ack)
 
         // .dcache2stb_rdata       (dcache2stb_rdata),
-        // .stb2lsudbus_rdata       (stb2lsudbus_rdata)
+        // .stb2dbuslsu_rdata       (stb2dbuslsu_rdata)
     );
 
      // Clock generation
-    always #5 clk = ~clk;
+    initial begin
+        clk = 0;
+        forever begin
+            clk = #5 ~clk;
+        end
+    end 
 
     task init_sequence;
-        clk                 = 0;
-        rst_n               = 0;
-        dmem_sel_i          = 0;
-        lsudbus2stb_w_en     = 0;
-        lsudbus2stb_req      = 0;
-        dcache2stb_ack      = 0;
-        // stb2dbuslsu_ack     = 0;
-        // stb2dbuslsu_stall   = 0;
+        clk                 <= 0;
+        rst_n               <= 0;
+        dmem_sel_i          <= 0;
+        lsudbus2stb_w_en     <= 0;
+        lsudbus2stb_req      <= 0;
+        dcache2stb_ack      <= 0;
 
-        lsudbus2stb_addr     = 32'b0;
-        lsudbus2stb_wdata    = 32'b0;
-        lsudbus2stb_sel_byte = 4'b1111;    
+        lsudbus2stb_addr     <= 32'b0;
+        lsudbus2stb_wdata    <= 32'b0;
+        lsudbus2stb_sel_byte <= 4'b1111;    
     endtask
 
     task reset_apply;
@@ -121,111 +124,139 @@ module tb_store_buffer_top;
     // Test stimulus
     initial begin
         // Initialize signals
-        
-        init_sequence();
+        $display("Initailize Signals\n");
+        init_sequence;
+
         // Assert reset
-        $display("Assert Reset");
-        reset_apply();
+        $display("Assert Reset\n");
+        reset_apply;
 
-        // Test 1: Normal Write Operation
-        $display("Test 1: Normal Write Operation");
-        
-        write_to_buffer(32'h0000, 32'hAAAA_BBBB, 4'b1111);
-        write_to_buffer(32'h0001, 32'hCCCC_DDDD, 4'b1111);
-        write_to_buffer(32'h0002, 32'hBBBB_aaaa, 4'b1111);
-        write_to_buffer(32'h0003, 32'hffff_DDDD, 4'b1111);
-        //write_to_buffer(32'h2000, 32'hAAAA_BBBB, 4'b1111);
-        //write_to_buffer(32'h1004, 32'hCCCC_DDDD, 4'b1111);
-        @(posedge clk);
+        // monitor and temporary buffer
+        /* This section starts two tasks (monitor and queue) in parallel.
+           join_none ensures that these tasks run in the background and 
+           do not block the main execution flow. This is important because 
+           the main simulation continues without waiting for these tasks to complete.
+        */
+        fork
+            monitor;
+            queue;
+            /* ensures that these tasks keep running in the background throughout 
+               the simulation.
+            */
+        join_none 
+        // Random Tests
+        /* This section starts two tasks (lsu_driver and cache_driver) in parallel.
+           join ensures that the simulation waits for both tasks to complete before 
+           moving forward.
+        */
 
-        // Test 3: Write to Cache (Cache ready, Buffer not empty)
-        // $display("Test 3: Write to Cache");
-        while (!stb2dcache_empty) begin
-            $display("Read started1");
-            write_to_cache();
-            $display("Read End1");
-            $display("Read started2");
-            write_to_cache();
-            $display("Read End2");
-            $display("Read started3");
-            write_to_cache();
-            $display("Read End3");
-            $display("Read started4");
-            write_to_cache();
-            $display("Read End4");
-            @(posedge clk);
-            
-        end
-        // @(posedge clk);
-        // write_to_buffer(32'h0002, 32'hBBBB_aaaa, 4'b1111);
-        // write_to_buffer(32'h0003, 32'hffff_DDDD, 4'b1111);
-        // @(posedge clk);
-        // while (!stb2dcache_empty) begin
-        //     $display("Read started3");
-        //     write_to_cache();
-        //     $display("Read End3");
-        //     $display("Read started4");
-        //     write_to_cache();
-        //     $display("Read End4");
-        //     @(posedge clk);
-            
-        // end
+        $display("Random Tests\n");
+        fork
+            lsu_driver;
+            cache_driver;
+        join
+
+        // store buffer should be empty after all data write to cache
+        repeat(2) @(posedge clk);
+        $display("store buffer empty(1) or not(0): %b",stb2dcache_empty);
         
         // End the simulation
-        $display("End of Simulation");
-        $stop;
+        $display("End of Simulation\n");
         $finish;
     end
 
     // Task to write to store buffer
-    task write_to_buffer(
-    input [ADDR_WIDTH-1:0] addr, 
-    input [DATA_WIDTH-1:0] data, 
-    input [BYTE_SEL_WIDTH-1:0] byte_sel
-);
-    begin
-        // Initialize signals for write operation
-        lsudbus2stb_addr = addr;
-        lsudbus2stb_wdata = data;
-        lsudbus2stb_sel_byte = byte_sel;
-        dmem_sel_i = 1;
-        lsudbus2stb_w_en = 1;
-        lsudbus2stb_req = 1;  // Valid signal
-
-        // Wait for acknowledgment
-        @(posedge clk);
-        $display("Waiting for acknowledgment...");
-        wait (stb2dbuslsu_ack);  // Block execution until acknowledgment is received
-
-        $display("Acknowledgment received.");
-        // Deassert write enable and request signals
-        lsudbus2stb_w_en = 0;
-        lsudbus2stb_req = 0;
-
-        // Add an extra clock cycle to ensure proper deassertion
-        @(posedge clk);
-        $display("Write operation completed for address: %h", addr);
-    end
-endtask
-
-
-
-    logic [31:0]dcache[0:31];
-    task write_to_cache();
-        dcache2stb_ack = 0;
-        @(posedge clk);
-        while (!stb2dcache_req)   
+    task lsu_driver;
+        for(int i = 0; i<NUM_RAND_TESTS; i++) begin
+            lsudbus2stb_addr[4:0]    <= $urandom;
+            lsudbus2stb_wdata        <= $urandom;
+            lsudbus2stb_sel_byte     <= $urandom;
+            dmem_sel_i              <= 1;
+            lsudbus2stb_w_en         <= 1;
+            lsudbus2stb_req          <= 1;
             @(posedge clk);
-            $display("not req");
-        
-        if (stb2dcache_w_en) begin
-            dcache[stb2dcache_addr] = stb2dcache_wdata;
-        end  
-        dcache2stb_ack = 1;
-        // repeat(2)@(posedge clk);
-        @(posedge clk)
-        dcache2stb_ack = 0;  
-        // $display("Read End"); 
+            while (stb2dbuslsu_stall)begin
+                @(posedge clk);  
+            end
+
+            repeat(1)@(posedge clk);
+            lsudbus2stb_req          <= 0;
+            if (lsudbus2stb_w_en == 0) begin
+                while (!stb2dbuslsu_ack) begin
+                    @(posedge clk);
+                end
+                lsudbus2stb_req          = 0;
+                //@(posedge clk);
+            end
+            // else begin
+            //     lsudbus2stb_req          <= 0; 
+            //     lsudbus2stb_w_en         <= 0;
+            //     while (!stb2dbuslsu_ack) begin
+            //         @(posedge clk);
+            //     end
+            // end
+            
+        end
+        lsudbus2stb_addr[4:0]    <= 0;
+        lsudbus2stb_wdata        <= 0;
+        lsudbus2stb_sel_byte     <= 0;
+        dmem_sel_i              <= 0;
+        lsudbus2stb_w_en         <= 0;
+        lsudbus2stb_req          <= 0;
+    endtask
+
+    task cache_driver;
+        for(int i = 0; i<NUM_RAND_TESTS; i++) begin
+            dcache2stb_ack <= 0;
+
+            @(posedge clk);
+            while (!stb2dcache_req)   
+                @(posedge clk);
+            
+            repeat(2) @(posedge clk);
+            // suppose that data cache send the ack after some cycles
+
+            dcache2stb_rdata <= $urandom;
+            dcache2stb_ack   <= 1;
+
+            @(posedge clk);
+            dcache2stb_rdata <= $urandom;
+            dcache2stb_ack <= 0;
+        end
+    endtask
+
+    // Writing the data in this temporary queue
+    task queue;
+        assign m_wr_idx = 0;
+        while (1) begin
+            @(posedge clk);
+            if (lsudbus2stb_w_en) begin
+                if (!stb2dbuslsu_stall) begin
+                    m_mem[m_wr_idx] = lsudbus2stb_wdata;
+                    assign m_wr_idx = (m_wr_idx == BLEN-1) ? '0: (m_wr_idx + 1);                
+                end
+            end 
+        end
+    endtask
+
+    // Read the data from the queue and then compare it with store buffer output data
+    task monitor;
+        assign m_rd_idx = 0;
+        while(1) begin
+            @(posedge clk);
+            if (stb2dcache_w_en) begin
+            if (dcache2stb_ack) begin
+                if (m_mem [m_rd_idx] != stb2dcache_wdata) begin
+                    $display (">>> Test Failed :(");
+                    $display ("m_rd_idx = %0h: lsudbus2stb = %0h || stb2dcache = %0h \n",m_rd_idx, m_mem [m_rd_idx], stb2dcache_wdata);
+                end else begin
+                    $display ("Passed :)  <3");
+                    $display ("m_rd_idx = %0h: lsudbus2stb = %0h || stb2dcache = %0h \n",m_rd_idx, m_mem [m_rd_idx], stb2dcache_wdata);
+                end
+                assign m_rd_idx = (m_rd_idx == BLEN-1)? '0: (m_rd_idx + 1);
+            end
+            end
+        end
     endtask
 
 endmodule
