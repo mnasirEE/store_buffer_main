@@ -99,12 +99,15 @@ module datapath #(
         if (!rst_n) begin
             entry_count = 0;
         end
-        else if (wr_en) begin
+        else if (wr_en && entry_count != 3'b100) begin
             entry_count = entry_count + 1;
         end
         else if (dcache2stb_ack) begin
             entry_count = entry_count - 1;
         end
+        // else if (entry_count == 3'b100) begin
+        //     entry_count = entry_count;
+        // end
         else begin
             entry_count = entry_count;
         end
