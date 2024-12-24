@@ -20,6 +20,5 @@ store_buffer_up
 *.mti
 *.mpf
 *.wlf
-*.sv
 *.sv.bak
 *.bak
