@@ -126,19 +126,19 @@ assign stb2dbuslsu_stall = stb_stall;
 
 always_ff @(posedge clk or negedge rst_n) begin : read_logic
     if(!rst_n) begin
-        cache_write_ack = 0;
+        cache_write_ack <= 0;
     end
     else if (stb_initial_read) begin
-        cache_write_ack = 1;
+        cache_write_ack <= 1;
     end
     else if (dcache2stb_ack) begin
-        cache_write_ack = 1;
+        cache_write_ack <= 1;
     end
     else if (stb_initial_done) begin
-        cache_write_ack = 0;
+        cache_write_ack <= 0;
     end
     else begin
-        cache_write_ack = cache_write_ack;
+        cache_write_ack <= cache_write_ack;
     end
 
     // stb2dbuslsu_ack   = stb_ack;
@@ -146,24 +146,24 @@ end
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        stb2dcache_req = 0;
-        stb2dcache_w_en = 0;
-        dmem_sel_o =0;
+        stb2dcache_req  <= 0;
+        stb2dcache_w_en <= 0;
+        dmem_sel_o <=0;
     end
     else if (read_req_en) begin
-        stb2dcache_req = 1;
-        stb2dcache_w_en = 1;
-        dmem_sel_o =1;
+        stb2dcache_req  <= 1;
+        stb2dcache_w_en <= 1;
+        dmem_sel_o <=1;
     end
     else if (dcache2stb_ack) begin
-        stb2dcache_req = 0;
-        stb2dcache_w_en = 0;
-        dmem_sel_o =0;
+        stb2dcache_req  <= 0;
+        stb2dcache_w_en <= 0;
+        dmem_sel_o <=0;
     end
     else begin
-        stb2dcache_req = stb2dcache_req;
-        stb2dcache_w_en = stb2dcache_w_en;
-        dmem_sel_o = dmem_sel_o;
+        stb2dcache_req  <= stb2dcache_req;
+        stb2dcache_w_en <= stb2dcache_w_en;
+        dmem_sel_o <= dmem_sel_o;
     end
 end
 

@@ -97,19 +97,22 @@ module datapath #(
     // Entry count for FIFO
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            entry_count = 0;
+            entry_count <= 0;
+        end
+        else if (dcache2stb_ack && wr_en && entry_count != 3'b100) begin
+            entry_count <= entry_count;
         end
         else if (wr_en && entry_count != 3'b100) begin
-            entry_count = entry_count + 1;
+            entry_count <= entry_count + 1;
         end
         else if (dcache2stb_ack) begin
-            entry_count = entry_count - 1;
+            entry_count <= entry_count - 1;
         end
         // else if (entry_count == 3'b100) begin
         //     entry_count = entry_count;
         // end
         else begin
-            entry_count = entry_count;
+            entry_count <= entry_count;
         end
         // stb_empty = (entry_count == 0);
         // stb_full = (entry_count == FIFO_DEPTH);
@@ -132,26 +135,26 @@ module datapath #(
     end
 
      // Status signals
-    // assign stb_empty = (entry_count == 0);
-    // assign stb_full = (entry_count == FIFO_DEPTH);
-    always_ff @(posedge clk or negedge rst_n) begin : empty_full_logic
-    if (!rst_n) begin
-        stb_empty <= 1;
-        stb_full  <= 0;
-    end else begin
-        // Update stb_empty and stb_full based on entry_count
-        if (entry_count == 0) begin
-            stb_empty <= 1;
-            stb_full  <= 0;
-        end else if (entry_count == FIFO_DEPTH+1) begin
-            stb_empty <= 0;
-            stb_full  <= 1;
-        end else begin
-            stb_empty <= 0;
-            stb_full  <= 0;
-        end
-    end
-end
+    assign stb_empty = (entry_count == 0);
+    assign stb_full = (entry_count == FIFO_DEPTH );
+//     always_ff @(posedge clk or negedge rst_n) begin : empty_full_logic
+//     if (!rst_n) begin
+//         stb_empty <= 1;
+//         stb_full  <= 0;
+//     end else begin
+//         // Update stb_empty and stb_full based on entry_count
+//         if (entry_count == 0) begin
+//             stb_empty <= 1;
+//             stb_full  <= 0;
+//         end else if (entry_count == FIFO_DEPTH-1) begin
+//             stb_empty <= 0;
+//             stb_full  <= 1;
+//         end else begin
+//             stb_empty <= 0;
+//             stb_full  <= 0;
+//         end
+//     end
+// end
 
 
     // assign stb_full = (entry_count == 2'b11);
