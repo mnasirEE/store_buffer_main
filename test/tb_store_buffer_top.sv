@@ -11,7 +11,7 @@
 module tb_store_buffer_top;
 
     // Parameters
-    parameter NUM_RAND_TESTS = 10;
+    parameter NUM_RAND_TESTS = 105;
     parameter ADDR_WIDTH = 32;
     parameter DATA_WIDTH = 32;
     parameter BYTE_SEL_WIDTH = 4;
@@ -53,6 +53,13 @@ module tb_store_buffer_top;
     // monitor and queue signals
     logic [DATA_WIDTH-1:0] m_mem [0:BLEN-1];
     logic [BLEN_IDX-1:0]  m_wr_idx, m_rd_idx;
+
+    // test results
+    integer tests_passed;
+    integer tests_failed;
+    integer total_tests;
+    integer results_file; // File descriptor
+    int     current_test;
 
     // Instantiate the DUT (Device Under Test)
     store_buffer_top #(
@@ -112,7 +119,12 @@ module tb_store_buffer_top;
 
         lsudbus2stb_addr     <= 32'b0;
         lsudbus2stb_wdata    <= 32'b0;
-        lsudbus2stb_sel_byte <= 4'b1111;    
+        lsudbus2stb_sel_byte <= 4'b1111; 
+        tests_failed         <= 0;
+        tests_passed         <= 0;
+        total_tests          <= 0; 
+        results_file         <= 0;  
+        current_test         <= 1;
     endtask
 
     task reset_apply;
@@ -123,6 +135,7 @@ module tb_store_buffer_top;
 
     // Test stimulus
     initial begin
+
         // Initialize signals
         $display("Initailize Signals\n");
         init_sequence;
@@ -130,6 +143,12 @@ module tb_store_buffer_top;
         // Assert reset
         $display("Assert Reset\n");
         reset_apply;
+
+        results_file = $fopen("test/tests_results.txt", "w"); // Open file in write mode
+        if (!results_file) begin
+            $display("Error: Could not open tests_results.txt for writing.");
+            $finish;
+        end
 
         // monitor and temporary buffer
         /* This section starts two tasks (monitor and queue) in parallel.
@@ -156,12 +175,24 @@ module tb_store_buffer_top;
             cache_driver;
         join
 
+
         // store buffer should be empty after all data write to cache
         repeat(2) @(posedge clk);
         $display("store buffer empty(1) or not(0): %b",stb2dcache_empty);
         
         // End the simulation
         $display("End of Simulation\n");
+        // display Tests results
+        assign total_tests = tests_passed + tests_failed;
+        $display("##################  Summary  ################\n");
+        $display("Passed      = %0d", tests_passed);
+        $display("Failed      = %0d", tests_failed);
+        $display("Total Tests = %0d", total_tests);
+        $fwrite(results_file, "\n");
+        $fwrite(results_file, "##################  Summary  ################\n");
+        $fwrite(results_file, "Total Passed = %0d\n", tests_passed);
+        $fwrite(results_file, "Total Failed = %0d\n", tests_failed);
+        $fwrite(results_file, "Total Tests = %0d\n",  total_tests);
         $finish;
     end
 
@@ -179,7 +210,7 @@ module tb_store_buffer_top;
                 @(posedge clk);  
             end
 
-            repeat(1)@(posedge clk);
+            // repeat(1)@(posedge clk);
             lsudbus2stb_req          <= 0;
             if (lsudbus2stb_w_en == 0) begin
                 while (!stb2dbuslsu_ack) begin
@@ -240,7 +271,7 @@ module tb_store_buffer_top;
     endtask
 
     // Read the data from the queue and then compare it with store buffer output data
-    task monitor;
+    task monitor();
         assign m_rd_idx = 0;
         while(1) begin
             @(posedge clk);
@@ -248,12 +279,21 @@ module tb_store_buffer_top;
             if (dcache2stb_ack) begin
                 if (m_mem [m_rd_idx] != stb2dcache_wdata) begin
                     $display (">>> Test Failed :(");
-                    $display ("m_rd_idx = %0h: lsudbus2stb = %0h || stb2dcache = %0h \n",m_rd_idx, m_mem [m_rd_idx], stb2dcache_wdata);
+                    $display ("m_rd_idx = %0h: lsudbus2stb = %0h || stb2dcache = %0h \n",
+                               m_rd_idx, m_mem [m_rd_idx], stb2dcache_wdata);
+                    $fwrite(results_file, "Test %0d Failed: Expected %h, Got %h at index %0d\n", 
+                            current_test,m_mem[m_rd_idx], stb2dcache_wdata, m_rd_idx);
+                    tests_failed++;
                 end else begin
                     $display ("Passed :)  <3");
-                    $display ("m_rd_idx = %0h: lsudbus2stb = %0h || stb2dcache = %0h \n",m_rd_idx, m_mem [m_rd_idx], stb2dcache_wdata);
+                    $display ("m_rd_idx = %0h: lsudbus2stb = %0h || stb2dcache = %0h \n",
+                               m_rd_idx, m_mem [m_rd_idx], stb2dcache_wdata);
+                    $fwrite(results_file, "Test %0d Passed: Data %h matches at index %0d\n", 
+                            current_test,stb2dcache_wdata, m_rd_idx);
+                    tests_passed++;
                 end
                 assign m_rd_idx = (m_rd_idx == BLEN-1)? '0: (m_rd_idx + 1);
+                assign current_test = (current_test + 1) % NUM_RAND_TESTS;
             end
             end
         end
